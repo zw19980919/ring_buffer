@@ -26,37 +26,37 @@ option("win") --构建选项
     set_description("Enable or disable win Plat", "  =y|n")--描述信息
 option_end()--构建选项结束
 --------------------------------------------------------------------------------------------
-
+   set_config("plat", "mingw")
+   set_config("sdk","C:/Users/AppData/mingw64")
 -------------------------------------编译工具链判断------------------------------------------
 if has_config("win") then--判断是否定义或者传入win，如果传入，那么用mingw
-    set_plat("mingw")
+   
 end 
+
+includes(TOP_DIR .. "/lib/")--包含project目录
 ---------------------------------------------------------------------------------------------
 local TARGET_NAME = "ring_buffer_test"
 
 target(TARGET_NAME)
 -- [don't edit] ---
-    if has_config("win") then
     	set_kind("binary")
-	else 
-    	set_kind("static")
-    end
+	
 	
 	--add_global_deps(TARGET_NAME)
 -- [   end    ] ---
 		--包含库文件
 		--add_deps("base")--设置依赖,依赖就是设置让链接器知道去哪里找到函数
-		--add_deps("ring_buffer")--设置依赖，这个依赖是另外的target
+		add_deps("ring_buffer")--设置依赖，这个依赖是另外的target
 
         --私有头文件路径
         --add_includedirs("inc", {public = true})
-    	--add_includedirs("src/portable/risc-v/inc", {public = true})
+    	--add_includedirs("lib/inc", {public = true})
 
     	--私有宏定义
     	--add_defines("DEBUG")
     	--源文件包含
         add_files("main.c")
-
+        add_ldflags(" C:/Users/AppData/mingw64/lib/libpthreadGC2.a",{force = true })
     	--add_srcdir("")
     	-- add_files("src/portable/risc-v/n310/src/*.S")
     	--对外头文件
@@ -65,6 +65,6 @@ target(TARGET_NAME)
 target_end()
 
 -------------------控制子文件编译设置，具体编译哪个文件夹下面的xmake.lua--------------------------
-includes(TOP_DIR .. "/lib/")--包含project目录
+
 
 
