@@ -7,9 +7,9 @@ extern "C" {
 
 struct ring_buffer
 {
-    int read_pos;
-    int write_pos;
-    int size;
+    volatile int read_pos;
+    volatile int write_pos;
+    volatile int size;
     unsigned char *base;
     void *rw_lock;
 };

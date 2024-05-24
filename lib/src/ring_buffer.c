@@ -36,7 +36,7 @@ int ring_buffer_init(ring_buffer_t *ring_buffer)
     }
     ring_buffer->read_pos = 0;
     ring_buffer->write_pos = 0;
-    ring_buffer->base = (unsigned char *)malloc(4096);
+    ring_buffer->base = (unsigned char *)malloc(1024);
     printf("the base address is:%x\n",ring_buffer->base);
     ring_buffer->size = 4096;
     memset(ring_buffer->base, 0, ring_buffer->size);
@@ -102,7 +102,7 @@ int ring_buffer_read(ring_buffer_t *ring_buffer, unsigned char *buffer, int *len
 int ring_buffer_write(ring_buffer_t *ring_buffer, unsigned char *buffer, int len)
 {
     unsigned int current_remaining_space;
-    if (buffer = NULL || ring_buffer == NULL)
+    if (buffer == NULL || ring_buffer == NULL)
     {
         return -1;
     }
@@ -125,12 +125,11 @@ int ring_buffer_write(ring_buffer_t *ring_buffer, unsigned char *buffer, int len
         printf("current_remaining_space is full\n");
         return -1;
     }
-     printf("klen si:%d\n",len);
     /************写入包括头部和数据区域的大小，总的长度**/
-    printf("(ring_buffer->base) + ring_buffer->write_pos address:%x\n",(ring_buffer->base) + ring_buffer->write_pos);
     *(unsigned int*)((unsigned int*)(ring_buffer->base) + ring_buffer->write_pos) =  len ;
-    printf("the len is:%d\n",*(unsigned int*)((unsigned int*)(ring_buffer->base) + ring_buffer->write_pos));
     ring_buffer->write_pos = ring_buffer->write_pos + 4;
+    //printf("the len is:%d\n",*(unsigned int*)((unsigned int*)(ring_buffer->base) + ring_buffer->write_pos));
+    
    
     /************对应类型1的***************************/
     if (ring_buffer->write_pos > ring_buffer->read_pos)
@@ -142,8 +141,10 @@ int ring_buffer_write(ring_buffer_t *ring_buffer, unsigned char *buffer, int len
                    len - ring_buffer->size + ring_buffer->write_pos - 1);
         }
         else
-        {   
-            printf("mem\n");
+        {
+            printf("ring_buffer->write_pos is:%d\n", ring_buffer->write_pos);               
+            printf("buffers is:%s\n", buffer);
+            printf("len is:%d\n", len);
             memcpy((void *)((unsigned char*)(ring_buffer->base) + ring_buffer->write_pos), buffer, len);
         }
     }
@@ -151,7 +152,7 @@ int ring_buffer_write(ring_buffer_t *ring_buffer, unsigned char *buffer, int len
     {
         memcpy(ring_buffer->base + ring_buffer->write_pos, buffer, len);
     }
-     printf("ring buffer context:%s\n",ring_buffer->base);
+     printf("ring buffer context:%s\n",ring_buffer->base + ring_buffer->write_pos);
     /*********************满了之后，把write_pos - 1，和空相区别*********/
     if (((ring_buffer->write_pos + len) % ring_buffer->size) == ring_buffer->read_pos)
     {
@@ -160,7 +161,6 @@ int ring_buffer_write(ring_buffer_t *ring_buffer, unsigned char *buffer, int len
     else
     {
         ring_buffer->write_pos = (ring_buffer->write_pos + len) % ring_buffer->size;
-        return -1;
     }
 }
 
