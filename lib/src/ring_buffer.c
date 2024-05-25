@@ -1,5 +1,6 @@
 #include "ring_buffer.h"
 #include <malloc.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <string.h>
 /**************************缓冲区读取规则描述******************************/
@@ -61,6 +62,17 @@ static int Align(int size, unsigned int len)
     }
 }
 
+static void get_lock(void *lock_ptr)
+{
+    pthread_mutex_t *mutex = (pthread_mutex_t *)lock_ptr;
+    pthread_mutex_lock(mutex);
+}
+
+static void release_lock(void *lock_ptr)
+{
+    pthread_mutex_t *mutex = (pthread_mutex_t *)lock_ptr;
+    pthread_mutex_unlock(mutex);
+}
 /********************************
  * 判读环形buffer是否为空
  * return 1 is empty
@@ -97,8 +109,11 @@ buffer_state ring_buffer_init(ring_buffer_t *ring_buffer)
     ring_buffer->base = (unsigned char *)malloc(1024);
     ring_buffer->flag_init = init_complete;
     ring_buffer->type = 0;
-    printf("the base address is:%x\n", (unsigned int)(ring_buffer->base));
     ring_buffer->size = 1024;
+    ring_buffer->rw_lock = (void *)malloc(sizeof(pthread_mutex_t));
+    pthread_mutex_init((pthread_mutex_t *)ring_buffer->rw_lock, NULL);
+    ring_buffer->GET_LOCK = get_lock;
+    ring_buffer->RELEASE_LOCK = release_lock;
     memset(ring_buffer->base, 0, ring_buffer->size);
     return success;
 }
@@ -108,7 +123,7 @@ buffer_state ring_buffer_init(ring_buffer_t *ring_buffer)
  * 输入：要创建的ring_buffer的大小
  * 输出：ring_buffer指针
  *********************************/
-ring_buffer_t* ring_buffer_declare_init(int buffer_size)
+ring_buffer_t *ring_buffer_declare_init(int buffer_size)
 {
     ring_buffer_t *ring_buffer = (ring_buffer_t *)malloc(sizeof(ring_buffer_t));
     if (ring_buffer == NULL)
@@ -119,9 +134,12 @@ ring_buffer_t* ring_buffer_declare_init(int buffer_size)
     ring_buffer->read_pos = 0;
     ring_buffer->write_pos = 0;
     ring_buffer->base = (unsigned char *)malloc(Align(4, buffer_size));
-    ring_buffer->flag_init = 1;
+    ring_buffer->flag_init = init_complete;
     ring_buffer->type = 2;
-    printf("the base address is:%x\n", ring_buffer->base);
+    ring_buffer->rw_lock = (void *)malloc(sizeof(pthread_mutex_t));
+    pthread_mutex_init((pthread_mutex_t *)ring_buffer->rw_lock, NULL);
+    ring_buffer->GET_LOCK = get_lock;
+    ring_buffer->RELEASE_LOCK = release_lock;
     ring_buffer->size = Align(4, buffer_size);
     memset(ring_buffer->base, 0, ring_buffer->size);
     return success;
@@ -140,6 +158,8 @@ buffer_state ring_buffer_read(ring_buffer_t *ring_buffer, unsigned char *buffer,
         printf("ring buffer is empty\n");
         return buffer_empty;
     }
+    /************得到互斥锁****************************/
+    ring_buffer->GET_LOCK(ring_buffer->rw_lock);
 
     if (ring_buffer->flag_init == init_complete)
     {
@@ -158,6 +178,7 @@ buffer_state ring_buffer_read(ring_buffer_t *ring_buffer, unsigned char *buffer,
                    real_len - ring_buffer->size + ring_buffer->read_pos - 1);
             ring_buffer->read_pos = ((ring_buffer->read_pos + aligned_len) % ring_buffer->size);
             *len = real_len;
+            ring_buffer->RELEASE_LOCK(ring_buffer->rw_lock);
             return success;
         }
         else
@@ -165,11 +186,13 @@ buffer_state ring_buffer_read(ring_buffer_t *ring_buffer, unsigned char *buffer,
             memcpy(buffer, ring_buffer->base + ring_buffer->read_pos, real_len);
             ring_buffer->read_pos = ((ring_buffer->read_pos + aligned_len) % ring_buffer->size);
             *len = real_len;
+            ring_buffer->RELEASE_LOCK(ring_buffer->rw_lock);
             return success;
         }
     }
     else
     {
+        ring_buffer->RELEASE_LOCK(ring_buffer->rw_lock);
         return buffer_ninit;
     }
 }
@@ -188,6 +211,8 @@ buffer_state ring_buffer_write(ring_buffer_t *ring_buffer, unsigned char *buffer
         printf("ERROR::invail pararm\n");
         return parameter_invalid;
     }
+    /************得到互斥锁****************************/
+    ring_buffer->GET_LOCK(ring_buffer->rw_lock);
 
     current_remaining_space = (ring_buffer->write_pos >= ring_buffer->read_pos)
                                   ? (ring_buffer->size - ring_buffer->write_pos + ring_buffer->read_pos)
@@ -197,6 +222,7 @@ buffer_state ring_buffer_write(ring_buffer_t *ring_buffer, unsigned char *buffer
     {
         printf("current_remaining_space len:%d\n", current_remaining_space);
         printf("current_remaining_space is low\n");
+        ring_buffer->RELEASE_LOCK(ring_buffer->rw_lock);
         return buffer_full;
     }
 
@@ -204,12 +230,14 @@ buffer_state ring_buffer_write(ring_buffer_t *ring_buffer, unsigned char *buffer
     if (((ring_buffer->write_pos + 1) % ring_buffer->size) == ring_buffer->read_pos)
     {
         printf("current_remaining_space is full\n");
+        ring_buffer->RELEASE_LOCK(ring_buffer->rw_lock);
         return buffer_full;
     }
 
     if (ring_buffer->flag_init == no_init)
     {
         printf("ring buffer is no init\n");
+        ring_buffer->RELEASE_LOCK(ring_buffer->rw_lock);
         return buffer_ninit;
     }
 
@@ -235,7 +263,6 @@ buffer_state ring_buffer_write(ring_buffer_t *ring_buffer, unsigned char *buffer
         }
         else
         {
-
             printf("buffers is:%s\n", buffer);
             printf("len is:%d\n", len);
             memcpy((void *)((unsigned char *)(ring_buffer->base) + ring_buffer->write_pos), buffer, len);
@@ -250,10 +277,14 @@ buffer_state ring_buffer_write(ring_buffer_t *ring_buffer, unsigned char *buffer
     if (((ring_buffer->write_pos + aligned_len) % ring_buffer->size) == ring_buffer->read_pos)
     {
         ring_buffer->write_pos = (ring_buffer->write_pos + aligned_len - 1) % ring_buffer->size;
+        ring_buffer->RELEASE_LOCK(ring_buffer->rw_lock);
+        return success;
     }
     else
     {
         ring_buffer->write_pos = (ring_buffer->write_pos + aligned_len) % ring_buffer->size;
+        ring_buffer->RELEASE_LOCK(ring_buffer->rw_lock);
+        return success;
     }
 }
 

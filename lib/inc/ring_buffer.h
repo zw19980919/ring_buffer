@@ -14,7 +14,7 @@ typedef enum
     system_no_memory = 5,
     parameter_invalid = 6
 }buffer_state;
-
+typedef void (*Fuction)(void *);
 typedef enum
 {   
     no_init = 0,
@@ -30,6 +30,8 @@ struct ring_buffer
     volatile int type ;
     unsigned char *base;
     void *rw_lock;
+    Fuction GET_LOCK;
+    Fuction RELEASE_LOCK;
 };
 typedef struct ring_buffer ring_buffer_t;
 
