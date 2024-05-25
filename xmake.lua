@@ -26,8 +26,8 @@ option("win") --构建选项
     set_description("Enable or disable win Plat", "  =y|n")--描述信息
 option_end()--构建选项结束
 --------------------------------------------------------------------------------------------
-   set_config("plat", "mingw")
-   set_config("sdk","C:/Users/AppData/mingw64")
+   set_config("plat", "linux")
+   --set_config("sdk","C:/Users/AppData/mingw64")
 -------------------------------------编译工具链判断------------------------------------------
 if has_config("win") then--判断是否定义或者传入win，如果传入，那么用mingw
    
@@ -56,7 +56,7 @@ target(TARGET_NAME)
     	--add_defines("DEBUG")
     	--源文件包含
         add_files("main.c")
-        add_ldflags(" C:/Users/AppData/mingw64/lib/libpthreadGC2.a",{force = true })
+        add_ldflags(" /usr/lib/x86_64-linux-gnu/libpthread-2.31.so ",{force = true })
     	--add_srcdir("")
     	-- add_files("src/portable/risc-v/n310/src/*.S")
     	--对外头文件
